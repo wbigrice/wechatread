@@ -5,10 +5,12 @@ import { fmtDuration, esc } from '../utils/helpers.js'
 const data=inject('data')
 const callWeread=inject('callWeread')
 const apiKey=inject('apiKey')
-const monthLabel=ref("本月")
+const monthLabel=ref(`${new Date().getFullYear()}年${new Date().getMonth()+1}月`)
 const monthBaseTime=ref(0)
 const popVisible=ref(false)
 const popYear=ref(new Date().getFullYear())
+const popRight=ref("0px")
+const popTop=ref("0px")
 
 const monthData=computed(()=>data.value?.monthly||{})
 const mb=computed(()=>data.value?.monthBooks||[])
@@ -23,9 +25,20 @@ const summary=computed(()=>{
 function togglePop(){
   if(popVisible.value){popVisible.value=false;return}
   popYear.value=monthBaseTime.value?new Date(monthBaseTime.value*1000).getFullYear():new Date().getFullYear()
+  // 弹窗右侧对齐模块右边缘，下方贴label
+  const label=document.getElementById("monthLabelEl")
+  const panel=label?.closest('.panel')
+  if(label&&panel){
+    const r=label.getBoundingClientRect()
+    const pr=panel.getBoundingClientRect()
+    popTop.value=(r.bottom+6)+"px"
+    popRight.value=(window.innerWidth-pr.right)+"px"
+  }
   popVisible.value=true
 }
 function closePop(){popVisible.value=false}
+function onScroll(){if(popVisible.value)closePop()}
+window.addEventListener("scroll",onScroll)
 function shiftYear(d){popYear.value+=d}
 function monthGrid(){
   const now=new Date()
@@ -54,12 +67,12 @@ async function selectMonth(y,m){
 </script>
 
 <template>
-<div class="panel">
+<div class="panel" style="overflow:visible">
   <div class="panel-head">
     <h2>月度阅读</h2>
     <div class="month-picker">
-      <span class="month-label" @click.stop="togglePop">{{ monthLabel }}</span>
-      <div class="month-popup" :class="{show:popVisible}">
+      <span id="monthLabelEl" class="month-label" @click.stop="togglePop">{{ monthLabel }}</span>
+      <div class="month-popup" :class="{show:popVisible}" :style="{right:popRight,top:popTop}">
         <div class="mp-year">
           <button @click.stop="shiftYear(-1)">◀</button><span>{{ popYear }}</span><button @click.stop="shiftYear(1)">▶</button>
         </div>
@@ -83,7 +96,7 @@ async function selectMonth(y,m){
         <div v-for="b in mb" :key="b.title" class="bi">
           <img :src="b.cover||''" @error="$event.target.style.background='#ddd'" />
           <div class="info"><div class="nm">{{ esc(b.title) }}</div>
-            <div class="mt">{{ b.author?esc(b.author)+'<br>':'' }}阅读 {{ fmtDuration(b.time||0) }} · 划线 {{ b.lines||0 }} · 想法 {{ b.ideas||0 }}</div></div>
+            <div class="mt"><span v-if="b.author">{{ esc(b.author) }}<br/></span>阅读 {{ fmtDuration(b.time||0) }} · 划线 {{ b.lines||0 }} · 想法 {{ b.ideas||0 }}</div></div>
         </div>
       </div>
     </div>
@@ -104,7 +117,7 @@ async function selectMonth(y,m){
         <template v-if="done.length">
           <div v-for="d in done" :key="d.title" class="bi" style="margin-bottom:8px">
             <img :src="d.cover||''" @error="$event.target.style.background='#ddd'" />
-            <div class="info"><div class="nm">{{ esc(d.title) }}</div><div class="mt">总时长 {{ fmtDuration(d.totalTime||0) }}</div></div>
+            <div class="info"><div class="nm">{{ esc(d.title) }}</div><div class="mt">{{ (d.time||d.totalTime) ? '总时长 '+fmtDuration(d.time||d.totalTime) : '本月未在读' }}</div></div>
           </div>
         </template>
         <span v-else class="mu">本月暂无读完</span>

@@ -8,7 +8,6 @@ const shelfState=inject('shelfState')
 const showBookDetail=inject('showBookDetail')
 const bookDetailRef=ref(null)
 
-const BOOKS_PER_ROW=28
 const stNames={all:"整面书架墙",reading:"进行中",closable:"可收尾",done:"已读完",unstart:"未开始"}
 
 const allBooks=computed(()=>{
@@ -45,10 +44,17 @@ const filteredBooks=computed(()=>{
 const shelfRows=computed(()=>{
   const groups={}
   filteredBooks.value.forEach(b=>{const c=b.category||"未分类";(groups[c]=groups[c]||[]).push(b)})
+  // 按最近阅读时间排序分类：最近看过的分类排前面
+  const sorted=Object.entries(groups).sort(([,a],[,b])=>{
+    const ma=Math.max(...a.map(x=>x.readUpdateTime||0))
+    const mb=Math.max(...b.map(x=>x.readUpdateTime||0))
+    return mb-ma
+  })
   const rows=[]
-  Object.entries(groups).forEach(([cat,list])=>{
-    for(let i=0;i<list.length;i+=BOOKS_PER_ROW){
-      rows.push({cat,chunk:list.slice(i,i+BOOKS_PER_ROW),isFirst:i===0,catTotal:list.length})
+  const perRow=getBooksPerRow()
+  sorted.forEach(([cat,list])=>{
+    for(let i=0;i<list.length;i+=perRow){
+      rows.push({cat,chunk:list.slice(i,i+perRow),isFirst:i===0,catTotal:list.length})
     }
   })
   return rows
@@ -67,17 +73,18 @@ const visibleCats=computed(()=>{
 })
 
 function openBook(b){bookDetailRef.value?.open(b)}
+const SPINE_W=20
 function spineStyle(b){
-  const h=95+((b.title||"").length*4)%55
-  // 有封面：更宽以展示封面
-  const w=b.cover?22+((b.title||"").length*4)%20:14+((b.title||"").length*4)%16
-  const col=b.cover?'transparent':hashColor(b.title)
-  if(b.cover){
-    return {height:h+"px",width:w+"px",background:`url("${b.cover}") center/cover no-repeat`,backgroundColor:hashColor(b.title)}
-  }
-  return {height:h+"px",width:w+"px",background:`linear-gradient(90deg,${darken2(hashColor(b.title),.82)},${hashColor(b.title)} 18%,${hashColor(b.title)} 82%,${darken2(hashColor(b.title),.82)})`}
+  const h=90+((b.title||"").length*3)%50
+  const col=hashColor(b.title)
+  if(b.cover) return {height:h+"px",width:SPINE_W+"px",background:"url("+b.cover+") center/cover no-repeat",backgroundColor:col}
+  return {height:h+"px",width:SPINE_W+"px",background:col}
 }
-const darken2=(h,f)=>{const n=parseInt(h.slice(1),16);return`rgb(${Math.floor(((n>>16)&255)*f)},${Math.floor(((n>>8)&255)*f)},${Math.floor((n&255)*f)})`}
+function getBooksPerRow(){
+  const shelf=document.querySelector(".bookshelf")
+  if(!shelf) return 22
+  return Math.max(5,Math.floor((shelf.clientWidth-120)/(SPINE_W+3))-1)
+}
 </script>
 
 <template>

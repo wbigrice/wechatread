@@ -27,18 +27,34 @@ provide('showErr',showErr)
 async function generate(){
   if(!apiKey.value){data.value=demoData();isDemo.value=true;return}
   try{
-    const [shelf,overall,monthly,userInfo]=await Promise.all([callWeread("/shelf/sync"),callWeread("/readdata/detail",{mode:"overall"}),callWeread("/readdata/detail",{mode:"monthly"}),callWeread("/user/info").catch(()=>({}))])
+    const now=new Date(),thisYear=now.getFullYear()
+    const [shelf,overall,monthly,userInfo,y1,y2,y3]=await Promise.all([
+      callWeread("/shelf/sync"),
+      callWeread("/readdata/detail",{mode:"overall"}),
+      callWeread("/readdata/detail",{mode:"monthly"}),
+      callWeread("/user/info").catch(()=>({})),
+      callWeread("/readdata/detail",{mode:"annually",baseTime:Math.floor(new Date(thisYear,0,1).getTime()/1000)}).catch(()=>({readTimes:{}})),
+      callWeread("/readdata/detail",{mode:"annually",baseTime:Math.floor(new Date(thisYear-1,0,1).getTime()/1000)}).catch(()=>({readTimes:{}})),
+      callWeread("/readdata/detail",{mode:"annually",baseTime:Math.floor(new Date(thisYear-2,0,1).getTime()/1000)}).catch(()=>({readTimes:{}}))
+    ])
     const heat={}
-    Object.entries(monthly.readTimes||{}).forEach(([ts,sec])=>{const d2=new Date(Number(ts)*1000);heat[`${d2.getFullYear()}-${String(d2.getMonth()+1).padStart(2,"0")}`]=(heat[`${d2.getFullYear()}-${String(d2.getMonth()+1).padStart(2,"0")}`]||0)+Number(sec)})
+    ;[y1,y2,y3].forEach(y=>{Object.entries(y.readTimes||{}).forEach(([ts,sec])=>{const d=new Date(Number(ts)*1000);heat[`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`]=(heat[`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`]||0)+Number(sec)})})
     const rl=monthly.readLongest||[]
     const mb=rl.slice(0,8).map(x=>{const b=x.book||x.albumInfo||{};return{title:b.title||b.name||"",author:b.author||b.authorName||"",time:x.readTime||0,lines:0,ideas:0,cover:b.cover||""}})
     const topEl=rl[0]&&(rl[0].book||rl[0].albumInfo)||{}
-    data.value={profile:{avatar:userInfo.avatar||userInfo.avatarUrl||"",name:userInfo.name||userInfo.nickname||userInfo.username||"",registTime:overall.registTime||null},shelf,overall,monthly,heat,monthBooks:mb,topBook:{title:topEl.title||topEl.name||"",author:topEl.author||topEl.authorName||"",time:rl[0]?rl[0].readTime:0,lines:0,ideas:0,cover:topEl.cover||""},doneBooks:(shelf.books||[]).filter(b=>b.finishReading===1).slice(0,5).map(b=>({title:b.title,totalTime:0,lines:0,ideas:0,cover:b.cover||""})),generatedAt:new Date().toISOString().slice(0,10),isDemo:false}
+    // doneBooks: 优先匹配本月readLongest里的时长
+    const doneTitles=new Set()
+    const doneList=(shelf.books||[]).filter(b=>b.finishReading===1).slice(0,5).map(b=>{
+      const rl2=rl.find(x=>{const t=(x.book||x.albumInfo||{}).title;if(!t)return false;if(doneTitles.has(t))return false;doneTitles.add(t);return t===b.title})
+      return{title:b.title,author:b.author,time:rl2?rl2.readTime:0,cover:b.cover||""}
+    })
+    data.value={profile:{avatar:userInfo.avatar||userInfo.avatarUrl||"",name:userInfo.name||userInfo.nickname||userInfo.username||"",registTime:overall.registTime||null},shelf,overall,monthly,heat,monthBooks:mb,topBook:{title:topEl.title||topEl.name||"",author:topEl.author||topEl.authorName||"",time:rl[0]?rl[0].readTime:0,lines:0,ideas:0,cover:topEl.cover||""},doneBooks:doneList,generatedAt:new Date().toISOString().slice(0,10),isDemo:false}
     isDemo.value=false
   }catch(e){errMsg.value="拉取失败："+e.message}
 }
 provide('generate',generate)
-data.value=demoData()
+// 初始化：有API Key就自动拉真实数据，否则展示demo
+if(apiKey.value){generate()}else{data.value=demoData();isDemo.value=true}
 </script>
 
 <template>

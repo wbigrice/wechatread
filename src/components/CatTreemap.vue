@@ -25,9 +25,10 @@ function build(){
   chart.setOption({
     tooltip:{trigger:"item",formatter:p=>`${p.name}<br/>${p.value} 本`},
     series:[{type:"treemap",roam:false,nodeClick:false,breadcrumb:{show:false},top:0,left:0,right:0,bottom:0,
-      label:{show:true,position:"inside",fontSize:14,fontWeight:"bold",color:"#fff",
-        formatter:p=>`{name|${p.name}}\n{count|${p.value}本}`,
-        rich:{name:{fontSize:14,fontWeight:"bold",lineHeight:22},count:{fontSize:12,fontWeight:"normal",opacity:.9,lineHeight:18}}},
+      label:{show:true,position:"inside",verticalAlign:"middle",align:"center",
+        fontSize:13,fontWeight:"bold",color:"#fff",
+        formatter:p=>p.name+"\n"+p.value+"本",
+        overflow:"truncate",minMargin:4},
       data:cells.map(c=>({name:c.name,value:c.count,itemStyle:{color:catColor(c.name),borderColor:"#fff",borderWidth:3,borderRadius:6}}))}]
   },true)
 }
