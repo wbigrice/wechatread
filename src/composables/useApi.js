@@ -1,5 +1,5 @@
 const SKILL_VERSION="1.0.4"
-const GATEWAY="https://i.weread.qq.com/api/agent/gateway"
+const GATEWAY="/api"
 
 export function useApi(apiKey){
   async function callWeread(apiName, params={}){

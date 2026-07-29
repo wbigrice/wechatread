@@ -1,306 +1,178 @@
 <script setup>
-import { ref, inject, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, inject, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { catColor } from '../utils/helpers.js'
 
-const data = inject('data')
+const data=inject('data'),canvasRef=ref(null)
+let animId=null,W=680,H=440,t=0,orbs=[],hovered=null,mx=0,my=0,PAD=2
 
-const canvasRef = ref(null)
-let animId = null
-let bubbles = []
-let mouse = { x: -1000, y: -1000 }
-let canvasWidth = 0
-let canvasHeight = 0
+function build(){
+  const cvs=canvasRef.value;if(!cvs||!data.value)return
+  cancelAnimationFrame(animId);t=0
 
-function packSpiral(items, w, h) {
-  const cx = w / 2
-  const cy = h / 2
-  const results = []
-  const minR = 28
-  const maxR = 70
+  let cells=[]
+  const cats=data.value.overall?.preferCategory||[]
+  if(cats.length) cells=cats.map(c=>({name:c.categoryTitle,val:c.readingCount||0}))
+  else{const m={};(data.value.shelf?.books||[]).forEach(b=>{const c=b.category||"未分类";m[c]=(m[c]||0)+1});cells=Object.entries(m).map(([n,v])=>({name:n,val:v}))}
+  cells=cells.filter(c=>c.val>0).sort((a,b)=>b.val-a.val)
+  if(!cells.length)return
 
-  items.forEach((item, i) => {
-    const total = items.reduce((s, x) => s + (x.readingCount || 0), 0) || 1
-    const frac = (item.readingCount || 0) / total
-    const r = minR + frac * (maxR - minR)
-    const angle = i * 2.4
-    const dist = 20 + i * 12
-    let x = cx + Math.cos(angle) * dist
-    let y = cy + Math.sin(angle) * dist
+  const dpr=window.devicePixelRatio||1
+  const rect=cvs.parentElement.getBoundingClientRect()
+  W=rect.width;H=Math.max(440,Math.min(520,W*.72))
+  cvs.style.width=W+"px";cvs.style.height=H+"px"
+  cvs.width=W*dpr;cvs.height=H*dpr
+  const ctx=cvs.getContext("2d");ctx.scale(dpr,dpr)
+  const cx=W/2,cy=H*.46
+  const maxV=cells[0].val,minV=cells[cells.length-1].val
+  const maxR=Math.min(W,H)*.2,minR=Math.min(W,H)*.04
 
-    x = Math.max(r, Math.min(w - r, x))
-    y = Math.max(r, Math.min(h - r, y))
+  // --- 半径 + 紧凑布局 ---
+  const raw=cells.map(c=>({name:c.name,val:c.val,color:catColor(c.name),r:Math.max(minR,Math.sqrt(c.val/maxV)*maxR)}))
+  const placed=[{...raw[0],x:cx,y:cy}] // 核心居中
 
-    results.push({
-      x, y, r,
-      vx: 0, vy: 0,
-      homeX: x, homeY: y,
-      name: item.categoryTitle || '',
-      count: item.readingCount || 0,
-      color: catColor(item.categoryTitle)
-    })
-  })
+  for(let i=1;i<raw.length;i++){
+    const orb=raw[i]
+    // 目标距离：紧贴已放置球体的边缘
+    let targetDist=placed[0].r+orb.r+PAD
+    // 对于更小的球，稍微推远一点让它们有空间
+    if(i>4) targetDist+=Math.min(W,H)*.06*(i-4)/raw.length
+    if(i>8) targetDist+=Math.min(W,H)*.08
 
-  return results
-}
-
-function createGradient(ctx, bubble) {
-  const { x, y, r, color } = bubble
-  const grad = ctx.createRadialGradient(
-    x - r * 0.2, y - r * 0.2, r * 0.05,
-    x, y, r
-  )
-  grad.addColorStop(0, lightenColor(color, 60))
-  grad.addColorStop(0.5, color)
-  grad.addColorStop(1, darkenColor(color, 30))
-  return grad
-}
-
-function lightenColor(hex, amount) {
-  const num = parseInt(hex.slice(1), 16)
-  const r = Math.min(255, ((num >> 16) & 255) + amount)
-  const g = Math.min(255, ((num >> 8) & 255) + amount)
-  const b = Math.min(255, (num & 255) + amount)
-  return `rgb(${r},${g},${b})`
-}
-
-function darkenColor(hex, amount) {
-  const num = parseInt(hex.slice(1), 16)
-  const r = Math.max(0, ((num >> 16) & 255) - amount)
-  const g = Math.max(0, ((num >> 8) & 255) - amount)
-  const b = Math.max(0, (num & 255) - amount)
-  return `rgb(${r},${g},${b})`
-}
-
-function updatePhysics() {
-  const friction = 0.92
-  const homeForce = 0.003
-  const mouseRepel = 80
-  const mouseForce = 0.15
-  const damping = 0.5
-
-  for (let i = 0; i < bubbles.length; i++) {
-    const b = bubbles[i]
-
-    // random perturbation
-    b.vx += (Math.random() - 0.5) * 0.6
-    b.vy += (Math.random() - 0.5) * 0.6
-
-    // home position return force
-    b.vx += (b.homeX - b.x) * homeForce
-    b.vy += (b.homeY - b.y) * homeForce
-
-    // mouse repulsion
-    const dx = b.x - mouse.x
-    const dy = b.y - mouse.y
-    const distToMouse = Math.sqrt(dx * dx + dy * dy)
-    if (distToMouse < mouseRepel + b.r && distToMouse > 0.01) {
-      const force = (mouseRepel + b.r - distToMouse) / (mouseRepel + b.r) * mouseForce
-      b.vx += (dx / distToMouse) * force * 8
-      b.vy += (dy / distToMouse) * force * 8
+    let bx=0,by=0,ok=false
+    for(let a=0;a<360&&!ok;a++){
+      const ang=(a*2.3999+Math.random()*.4)
+      const tx=cx+Math.cos(ang)*targetDist,ty=cy+Math.sin(ang)*targetDist*.65
+      let collide=false
+      for(const p of placed){
+        const dx=tx-p.x,dy=ty-p.y
+        if(Math.sqrt(dx*dx+dy*dy)<orb.r+p.r+PAD){collide=true;break}
+      }
+      if(!collide&&tx-orb.r>4&&tx+orb.r<W-4&&ty-orb.r>4&&ty+orb.r<H-30-4){bx=tx;by=ty;ok=true}
     }
-
-    // elastic collisions with other bubbles
-    for (let j = i + 1; j < bubbles.length; j++) {
-      const other = bubbles[j]
-      const dx2 = b.x - other.x
-      const dy2 = b.y - other.y
-      const dist = Math.sqrt(dx2 * dx2 + dy2 * dy2)
-      const minDist = b.r + other.r + 4
-      if (dist < minDist && dist > 0.01) {
-        const overlap = minDist - dist
-        const nx = dx2 / dist
-        const ny = dy2 / dist
-        const halfOverlap = overlap / 2
-        b.x += nx * halfOverlap
-        b.y += ny * halfOverlap
-        other.x -= nx * halfOverlap
-        other.y -= ny * halfOverlap
-
-        const relVx = b.vx - other.vx
-        const relVy = b.vy - other.vy
-        const relVelAlongNormal = relVx * nx + relVy * ny
-        if (relVelAlongNormal > 0) {
-          const impulse = relVelAlongNormal * damping
-          b.vx -= nx * impulse
-          b.vy -= ny * impulse
-          other.vx += nx * impulse
-          other.vy += ny * impulse
+    if(!ok){
+      // fallback: 逐步外推直到找到无碰撞位置
+      for(let d=targetDist+4;d<Math.min(W,H)*.48;d+=3){
+        for(let a=0;a<16;a++){
+          const ang=a*Math.PI/8+Math.random()*.3
+          const tx=cx+Math.cos(ang)*d,ty=cy+Math.sin(ang)*d*.65
+          let collide=false
+          for(const p of placed){
+            if(Math.sqrt((tx-p.x)**2+(ty-p.y)**2)<orb.r+p.r+PAD){collide=true;break}
+          }
+          if(!collide&&tx-orb.r>4&&tx+orb.r<W-4&&ty-orb.r>4&&ty+orb.r<H-30-4){bx=tx;by=ty;ok=true;break}
         }
+        if(ok)break
       }
     }
-
-    // boundary bounce
-    if (b.x - b.r < 0) { b.x = b.r; b.vx *= -0.5 }
-    if (b.x + b.r > canvasWidth) { b.x = canvasWidth - b.r; b.vx *= -0.5 }
-    if (b.y - b.r < 0) { b.y = b.r; b.vy *= -0.5 }
-    if (b.y + b.r > canvasHeight) { b.y = canvasHeight - b.r; b.vy *= -0.5 }
-
-    // apply friction
-    b.vx *= friction
-    b.vy *= friction
-    b.x += b.vx
-    b.y += b.vy
+    if(!ok){bx=cx+(Math.random()-.5)*W*.5;by=cy+(Math.random()-.5)*H*.4}
+    placed.push({...orb,x:bx,y:by})
   }
-}
 
-function draw() {
-  const canvas = canvasRef.value
-  if (!canvas) return
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
+  // 轻度迭代推离 + 向心收缩
+  for(let iter=0;iter<15;iter++){
+    for(let i=0;i<placed.length;i++){
+      for(let j=i+1;j<placed.length;j++){
+        const a=placed[i],b=placed[j],dx=b.x-a.x,dy=b.y-a.y,dist=Math.sqrt(dx*dx+dy*dy),minD=a.r+b.r+PAD
+        if(dist<minD&&dist>.01){const nx=dx/dist,ny=dy/dist,ov=minD-dist,tr=a.r+b.r;a.x-=nx*ov*(b.r/tr);a.y-=ny*ov*(b.r/tr);b.x+=nx*ov*(a.r/tr);b.y+=ny*ov*(a.r/tr)}
+      }
+    }
+    // 向心引力：非核心球拉向中心
+    for(let i=1;i<placed.length;i++){
+      const o=placed[i],dx=cx-o.x,dy=cy-o.y,dist=Math.sqrt(dx*dx+dy*dy)
+      if(dist>placed[0].r+o.r+PAD){
+        const strength=.03 // 弱引力
+        o.x+=dx*strength;o.y+=dy*strength
+      }
+    }
+    // 核心锚定
+    placed[0].x=cx;placed[0].y=cy
+    // 边界
+    placed.forEach(o=>{o.x=Math.max(o.r+4,Math.min(W-o.r-4,o.x));o.y=Math.max(o.r+4,Math.min(H-o.r-30,o.y))})
+  }
 
-  ctx.clearRect(0, 0, canvasWidth, canvasHeight)
+  orbs=placed.map(o=>({...o,ox:o.x,oy:o.y,phase:Math.random()*Math.PI*2,speed:.7+Math.random()*.5}))
 
-  // draw bubbles
-  for (const b of bubbles) {
+  // --- 绘制 ---
+  function drawOrb(o,t){
+    const fy=o.y+Math.sin(t*.012*o.speed+o.phase)*3
+    const x=o.x,y=fy,r=o.r
+
+    // 微弱椭圆落地阴影
     ctx.save()
+    const sg=ctx.createRadialGradient(x,y+r*.88,r*.05,x,y+r*.94,r*.55)
+    sg.addColorStop(0,'rgba(60,50,40,.05)');sg.addColorStop(1,'rgba(60,50,40,0)')
+    ctx.beginPath();ctx.ellipse(x,y+r+1,r*.48,r*.06,0,0,Math.PI*2)
+    ctx.fillStyle=sg;ctx.fill();ctx.restore()
 
-    // shadow
-    ctx.shadowColor = 'rgba(0,0,0,0.15)'
-    ctx.shadowBlur = 8
-    ctx.shadowOffsetX = 2
-    ctx.shadowOffsetY = 2
-
-    ctx.beginPath()
-    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2)
-    ctx.fillStyle = createGradient(ctx, b)
+    // === 扁平风格球体（保留微立体） ===
+    ctx.save();ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2)
+    const g=ctx.createRadialGradient(x-r*.3,y-r*.3,r*.1,x,y,r)
+    g.addColorStop(0,o.color)
+    g.addColorStop(.7,o.color)
+    g.addColorStop(1,darken(o.color,.92))
+    ctx.fillStyle=g
+    ctx.shadowColor='rgba(0,0,0,.08)';ctx.shadowBlur=6;ctx.shadowOffsetY=2
     ctx.fill()
+    ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0
+    ctx.restore()
 
-    ctx.shadowColor = 'transparent'
-    ctx.shadowBlur = 0
-    ctx.shadowOffsetX = 0
-    ctx.shadowOffsetY = 0
-
-    // label
-    ctx.fillStyle = '#fff'
-    ctx.font = `bold ${Math.max(11, b.r * 0.38)}px sans-serif`
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    const name = b.name.length > 4 ? b.name.slice(0, 4) : b.name
-    ctx.fillText(name, b.x, b.y - b.r * 0.12)
-
-    ctx.font = `${Math.max(10, b.r * 0.28)}px sans-serif`
-    ctx.fillStyle = 'rgba(255,255,255,0.8)'
-    ctx.fillText(`${b.count}本`, b.x, b.y + b.r * 0.28)
-
+    // 文字 — 纤细优雅
+    ctx.save()
+    const fs=Math.max(10,r*.17)
+    ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle'
+    ctx.font=`400 ${fs}px "Nunito Sans","PingFang SC",sans-serif`
+    ctx.shadowColor='rgba(0,0,0,.2)';ctx.shadowBlur=1;ctx.shadowOffsetY=1
+    ctx.fillText(o.name,x,y-fs*.15)
+    ctx.font=`400 ${Math.max(9,fs*.68)}px "Nunito Sans","PingFang SC",sans-serif`
+    ctx.fillText(o.val+'本',x,y+fs*.5)
+    ctx.shadowColor='transparent';ctx.shadowBlur=0;ctx.shadowOffsetY=0
     ctx.restore()
   }
-}
 
-function loop() {
-  updatePhysics()
-  draw()
-  animId = requestAnimationFrame(loop)
-}
+  function darken(h,f){const n=parseInt(h.slice(1),16);return`rgb(${Math.floor(((n>>16)&255)*f)},${Math.floor(((n>>8)&255)*f)},${Math.floor((n&255)*f)})`}
+  function lighten(h,f){const n=parseInt(h.slice(1),16);const r=Math.floor(((n>>16)&255)+(255-((n>>16)&255))*f),g=Math.floor(((n>>8)&255)+(255-((n>>8)&255))*f),b=Math.floor((n&255)+(255-(n&255))*f);return`rgb(${r},${g},${b})`}
 
-function resizeCanvas() {
-  const canvas = canvasRef.value
-  if (!canvas) return
-  const parent = canvas.parentElement
-  if (!parent) return
-
-  const w = parent.clientWidth
-  const h = Math.max(340, Math.min(500, w * 0.62))
-
-  const dpr = window.devicePixelRatio || 1
-  canvasWidth = w
-  canvasHeight = h
-  canvas.width = w * dpr
-  canvas.height = h * dpr
-  canvas.style.width = w + 'px'
-  canvas.style.height = h + 'px'
-
-  const ctx = canvas.getContext('2d')
-  if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-
-  if (data.value?.overall?.preferCategory) {
-    bubbles = packSpiral(data.value.overall.preferCategory, w, h)
+  cvs.onmousemove=e=>{
+    const r=cvs.getBoundingClientRect()
+    mx=(e.clientX-r.left)*(W/r.width);my=(e.clientY-r.top)*(H/r.height)
+    hovered=null
+    for(let i=orbs.length-1;i>=0;i--){
+      const o=orbs[i],fy=o.y+Math.sin(t*.012*o.speed+o.phase)*3
+      if(Math.sqrt((mx-o.x)**2+(my-fy)**2)<o.r+4){hovered=o;break}
+    }
+    cvs.style.cursor=hovered?'pointer':'default'
   }
-}
 
-function onMouseMove(e) {
-  const canvas = canvasRef.value
-  if (!canvas) return
-  const rect = canvas.getBoundingClientRect()
-  mouse.x = e.clientX - rect.left
-  mouse.y = e.clientY - rect.top
-}
-
-function onMouseLeave() {
-  mouse.x = -1000
-  mouse.y = -1000
-}
-
-function onTouchMove(e) {
-  if (e.touches.length > 0) {
-    const canvas = canvasRef.value
-    if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
-    mouse.x = e.touches[0].clientX - rect.left
-    mouse.y = e.touches[0].clientY - rect.top
+  function animate(){
+    ctx.clearRect(0,0,W,H);t++
+    const sorted=[...orbs].sort((a,b)=>b.r-a.r);sorted.forEach(o=>drawOrb(o,t))
+    if(hovered){
+      const o=hovered,fy=o.y+Math.sin(t*.012*o.speed+o.phase)*3
+      ctx.save();ctx.beginPath();ctx.arc(o.x,fy,o.r+1.5,0,Math.PI*2)
+      ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=1.5;ctx.stroke();ctx.restore()
+      const txt=`${o.name} · ${o.val}本`
+      ctx.save();ctx.font='12px "Nunito Sans","PingFang SC",sans-serif';const tw=ctx.measureText(txt).width
+      const tx=o.x,ty=fy-o.r-14
+      ctx.fillStyle='rgba(40,35,30,.8)';ctx.beginPath()
+      ctx.roundRect(tx-tw/2-8,ty-12,tw+16,22,6);ctx.fill()
+      ctx.fillStyle='#fff';ctx.textAlign='center';ctx.fillText(txt,tx,ty);ctx.restore()
+    }
+    animId=requestAnimationFrame(animate)
   }
+  animate()
 }
 
-function onTouchEnd() {
-  mouse.x = -1000
-  mouse.y = -1000
-}
-
-onMounted(async () => {
-  await nextTick()
-  resizeCanvas()
-  animId = requestAnimationFrame(loop)
-  window.addEventListener('resize', resizeCanvas)
-})
-
-onBeforeUnmount(() => {
-  if (animId) cancelAnimationFrame(animId)
-  window.removeEventListener('resize', resizeCanvas)
-})
+let rt
+window.addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(build,300)})
+onMounted(()=>nextTick(build))
+watch(()=>data.value,()=>nextTick(build))
+onBeforeUnmount(()=>{cancelAnimationFrame(animId);clearTimeout(rt)})
 </script>
 
 <template>
-  <div class="section-panel">
-    <h3 class="section-title">分类气泡图</h3>
-    <div v-if="!data.value?.overall?.preferCategory?.length" class="empty-hint">暂无数据</div>
-    <div v-else class="bubble-container">
-      <canvas
-        ref="canvasRef"
-        @mousemove="onMouseMove"
-        @mouseleave="onMouseLeave"
-        @touchmove="onTouchMove"
-        @touchend="onTouchEnd"
-      ></canvas>
-    </div>
-  </div>
+<div class="panel">
+  <h2>阅读内容地图</h2>
+  <div class="sub">悬浮球体聚类图 · 莫兰迪色系</div>
+  <canvas ref="canvasRef" id="bubbleMap" style="display:block"></canvas>
+</div>
 </template>
-
-<style scoped>
-.section-panel {
-  background: #fff;
-  border-radius: 10px;
-  padding: 18px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-  margin-bottom: 20px;
-}
-.section-title {
-  margin: 0 0 14px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-}
-.empty-hint {
-  color: #999;
-  font-size: 14px;
-  text-align: center;
-  padding: 24px 0;
-}
-.bubble-container {
-  width: 100%;
-  position: relative;
-}
-.bubble-container canvas {
-  display: block;
-  cursor: pointer;
-}
-</style>

@@ -3,10 +3,12 @@ export function fmtDate(ts){if(!ts)return "";const d=new Date(Number(ts)*1000);r
 export function fmtYM(ts){const d=new Date(Number(ts)*1000);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`}
 export function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]))}
 
-export const catColors={"文学":"#4a8c6f","精品小说":"#e0734a","小说":"#e0734a","经济理财":"#7c5fa8","期刊杂志":"#e89050","未分类":"#4d89b0","历史":"#7da678","其他":"#b89760","科技":"#4d908b","哲学":"#8e6aad","艺术":"#c95a7a","心理":"#667dab","社科":"#71994e"}
-export function catColor(c){return catColors[c]||"#b0a89a"}
+export const catColors={"文学":"#4A7C6D","精品小说":"#C4815E","小说":"#C4815E","经济理财":"#7E6B9A","期刊杂志":"#C8956A","未分类":"#6D8CA8","历史":"#7E9A7A","其他":"#B09870","科技":"#5E8C8C","哲学":"#8E7B9E","艺术":"#B87080","心理":"#707EA0","社科":"#70905E"}
+// 莫兰迪扩展色板 — 未匹配的分类按 hash 取色，保证任意数据都协调
+const morandiPalette=["#4A7C6D","#C4815E","#7E6B9A","#C8956A","#6D8CA8","#7E9A7A","#B09870","#5E8C8C","#8E7B9E","#B87080","#707EA0","#70905E","#9E8576","#6B8E7A","#C4927A","#8B7BA5","#A8956E","#6889A0","#859A78","#9B7688"]
+export function catColor(c){if(catColors[c])return catColors[c];let h=0;for(let i=0;i<c.length;i++)h=(h*31+c.charCodeAt(i))%morandiPalette.length;return morandiPalette[h]}
 
-const spinePalette=["#5a8c7a","#6b4c3d","#8b3a3a","#3d5a80","#6b705c","#9c6644","#7f5539","#b08968","#4a4e69","#9a8c98","#c9ada7","#606c38","#283618","#dda15e","#bc6c25","#386641","#a44a3f","#50514f","#3d5a80","#7d4f50"]
+const spinePalette=["#4A7C6D","#6B5A4A","#8B5A5A","#4A5A7A","#6B7060","#9C6A4E","#7F5A4A","#B08A6E","#5A5A7A","#9A8A9A","#C9ADA7","#607040","#3A4A2A","#C49A6E","#B06A4A","#3A6A50","#9A5A5A","#5A5A5A","#4A5A80","#7A5A60"]
 export function hashColor(str){let h=0;for(let i=0;i<str.length;i++)h=(h*31+str.charCodeAt(i))%spinePalette.length;return spinePalette[h]}
 export function isDark(c){const n=parseInt(c.slice(1),16);return(0.299*((n>>16)&255)+0.587*((n>>8)&255)+0.114*(n&255))<140}
 

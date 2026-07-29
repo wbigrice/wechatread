@@ -1,199 +1,52 @@
 <script setup>
 import { computed, inject } from 'vue'
-import { authors, eraOf, ERA_KEYS, esc } from '../utils/helpers.js'
+import { authors, eraOf, esc } from '../utils/helpers.js'
 
-const data = inject('data')
+const data=inject('data')
 
-const timelineGroups = computed(() => {
-  if (!data.value) return []
-
-  const books = data.value.shelf?.books || []
-  const authorCounts = {}
-
-  books.forEach(book => {
-    const name = book.author || ''
-    if (!name) return
-    if (!authorCounts[name]) {
-      authorCounts[name] = { count: 0, year: authors[name] || null }
-    }
-    authorCounts[name].count++
+const eras=computed(()=>{
+  const books=data.value?.shelf?.books||[]
+  const map={}
+  books.forEach(b=>{
+    const y=b.authorYear!=null?b.authorYear:(b.author&&authors[b.author]!=null?authors[b.author]:null)
+    if(y==null)return
+    const era=eraOf(y)
+    map[era]=map[era]||{}
+    const nm=b.author||"佚名"
+    map[era][nm]=(map[era][nm]||0)+1
   })
-
-  // Group by era
-  const eraMap = {}
-  ERA_KEYS.forEach(k => { eraMap[k] = [] })
-
-  Object.entries(authorCounts).forEach(([name, info]) => {
-    const era = eraOf(info.year)
-    if (!eraMap[era]) eraMap[era] = []
-    eraMap[era].push({ name, count: info.count, year: info.year })
+  const order=["1800前","1800-1849","1850-1899","1900-1949","1950-1999","2000后"].filter(e=>map[e])
+  return order.map(era=>{
+    const arr=Object.entries(map[era]).sort((a,b)=>b[1]-a[1])
+    return {era,label:era.replace("1800前","古典"),authors:arr}
   })
-
-  // Sort authors within each era by count descending
-  const result = []
-  ERA_KEYS.forEach(era => {
-    if (eraMap[era] && eraMap[era].length > 0) {
-      eraMap[era].sort((a, b) => b.count - a.count)
-      result.push({ era, authors: eraMap[era] })
-    }
-  })
-
-  return result
 })
 
-const maxCount = computed(() => {
-  let max = 0
-  timelineGroups.value.forEach(g => {
-    g.authors.forEach(a => {
-      if (a.count > max) max = a.count
-    })
-  })
-  return max || 1
-})
+const axisLabels=["古典","19世纪","20世纪上半","20世纪下半","当代"]
 </script>
 
 <template>
-  <div class="section-panel">
-    <h3 class="section-title">作者时代分布</h3>
-
-    <div v-if="timelineGroups.length === 0" class="empty-hint">
-      暂无作者数据
+<div class="panel">
+  <h2>同年代作者时间线</h2>
+  <div class="sub">根据书架中已读 / 在读书籍的作者活跃年代聚类</div>
+  <div v-if="!eras.length" class="empty">暂无作者数据</div>
+  <div v-else class="tl">
+    <div class="axis">
+      <span v-for="l in axisLabels" :key="l">{{ l }}</span>
     </div>
-
-    <div v-else class="timeline-wrap">
-      <div class="timeline-axis">
-        <div
-          v-for="group in timelineGroups"
-          :key="group.era"
-          class="timeline-era-section"
-        >
-          <div class="timeline-era-dot"></div>
-          <div class="timeline-era-label">{{ group.era }}</div>
-          <div class="timeline-era-line"></div>
-        </div>
-      </div>
-
-      <div class="timeline-body">
-        <div
-          v-for="group in timelineGroups"
-          :key="group.era"
-          class="timeline-era-block"
-        >
-          <div class="era-authors">
-            <div
-              v-for="author in group.authors"
-              :key="author.name"
-              class="author-chip"
-              :title="`${author.name}: ${author.count}本`"
-            >
-              <span class="chip-name">{{ esc(author.name) }}</span>
-              <span class="chip-count">{{ author.count }}</span>
-            </div>
-          </div>
-        </div>
+    <div v-for="e in eras" :key="e.era" class="tl-era" style="animation:fadeInUp .5s ease both">
+      <div class="eh">{{ e.label }}</div>
+      <div class="pills2">
+        <span v-for="[name,cnt] in e.authors" :key="name" class="chip">
+          <b>{{ esc(name) }}</b><small>{{ cnt }}本</small>
+        </span>
       </div>
     </div>
   </div>
+</div>
 </template>
 
-<style scoped>
-.section-panel {
-  background: #fff;
-  border-radius: 10px;
-  padding: 18px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-  margin-bottom: 20px;
-}
-.section-title {
-  margin: 0 0 16px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-}
-.empty-hint {
-  color: #999;
-  font-size: 14px;
-  text-align: center;
-  padding: 24px 0;
-}
-
-.timeline-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.timeline-axis {
-  display: flex;
-  align-items: flex-start;
-  padding-bottom: 8px;
-  border-bottom: 2px solid #e0e0e0;
-  margin-bottom: 12px;
-}
-.timeline-era-section {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-}
-.timeline-era-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #3a7c6a;
-  margin-bottom: 4px;
-}
-.timeline-era-label {
-  font-size: 11px;
-  color: #666;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.timeline-body {
-  display: flex;
-}
-.timeline-era-block {
-  flex: 1;
-  padding: 0 4px;
-}
-.era-authors {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  justify-content: center;
-}
-.author-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  background: #f0f6f3;
-  border: 1px solid #d0e4d8;
-  border-radius: 12px;
-  padding: 3px 10px;
-  font-size: 12px;
-  cursor: default;
-  transition: background 0.15s;
-}
-.author-chip:hover {
-  background: #dcebe3;
-}
-.chip-name {
-  color: #333;
-  max-width: 80px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.chip-count {
-  color: #3a7c6a;
-  font-weight: 600;
-  font-size: 11px;
-  background: #fff;
-  border-radius: 8px;
-  padding: 0 5px;
-  min-width: 16px;
-  text-align: center;
-}
+<style>
+@keyframes fadeInUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.tl-era:nth-child(2){animation-delay:.1s}.tl-era:nth-child(3){animation-delay:.2s}.tl-era:nth-child(4){animation-delay:.3s}.tl-era:nth-child(5){animation-delay:.4s}.tl-era:nth-child(6){animation-delay:.5s}.tl-era:nth-child(7){animation-delay:.6s}
 </style>

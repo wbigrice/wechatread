@@ -1,5 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;500;600;700;800&family=Varela+Round&display=swap');
-:root{--bg:#f8f6f1;--card:#fff;--ink:#2b2b2b;--muted:#9b958c;--line:#ece8e0;--green:#5a8c7a;--green-d:#3f6b5a;--wood:#d8c9ad;--wood-d:#c2ab84;--shadow:0 4px 20px rgba(70,60,40,.08);--radius:16px;--radius-s:10px}
+:root{--bg:#F7F3EC;--card:#fff;--ink:#2b2b2b;--muted:#9E9890;--line:#E8E4DB;--green:#4A7C6D;--green-d:#386155;--wood:#C8BCA5;--wood-d:#B0A082;--shadow:0 4px 20px rgba(70,60,40,.06);--radius:16px;--radius-s:10px}
 *{box-sizing:border-box}
 body{margin:0;background-color:#f5f0e8;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='paper' x='0%25' y='0%25' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.008' numOctaves='5' result='noise'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.94  0 0 0 0 0.92  0 0 0 0 0.88  0 0 0 0.35 0' in='noise' result='colored'/%3E%3CfeComposite in='colored' in2='SourceGraphic' operator='in'/%3E%3C/filter%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paper)'/%3E%3Crect width='100%25' height='100%25' filter='url(%23grain)' opacity='0.06'/%3E%3C/svg%3E");color:var(--ink);font-family:"Nunito Sans","PingFang SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,sans-serif;line-height:1.6;font-size:14px}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
@@ -26,7 +26,7 @@ a{color:var(--green);text-decoration:none}
 .tabs button:focus-visible{outline:2px solid var(--green);outline-offset:-2px;border-radius:4px}
 .panel{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin-bottom:16px;transition:box-shadow .25s ease;overflow:hidden;min-width:0}
 .panel h2{margin:0 0 2px;font-size:18px;font-weight:700;font-family:"Varela Round","PingFang SC",-apple-system,sans-serif}
-.panel .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+.panel .sub{color:var(--muted);font-size:13px;margin-bottom:6px}
 .panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
 .panel-head h2{margin:0}
 .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -55,11 +55,12 @@ select.sel:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 .spine:hover{transform:translateY(-8px);z-index:5;box-shadow:inset 1px 0 2px rgba(255,255,255,.3),inset -1px 0 3px rgba(0,0,0,.25),4px 4px 12px rgba(0,0,0,.25)}
 .spine .t{writing-mode:vertical-rl;text-orientation:mixed;font-size:10px;color:rgba(255,255,255,.95);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:6px 0;max-height:100%;font-weight:500;letter-spacing:.5px}
 .spine .t.dark{color:rgba(35,30,20,.85)}
+.spine-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:2px 2px 0 0}
 .empty{color:var(--muted);text-align:center;padding:60px 20px;font-size:14px}
 .ov-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
 .ov{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px}
 .ov .k{color:var(--muted);font-size:13px}
-.ov .v{font-size:26px;font-weight:700;color:var(--green);margin-top:4px}
+.ov .v{font-size:28px;font-weight:600;color:var(--green);margin-top:4px;font-family:Georgia,"Times New Roman",serif}
 .ov .v small{font-size:14px;font-weight:500;color:var(--muted);margin-left:2px}
 .two{display:grid;grid-template-columns:1.25fr 1fr;gap:16px;align-items:start}
 .chart-box{width:100%;aspect-ratio:16/9;min-height:280px;max-height:480px}

@@ -49,8 +49,8 @@ data.value=demoData()
     <button :class="{active:activeTab==='wall'}" @click="activeTab='wall'">书架墙</button>
     <button :class="{active:activeTab==='stats'}" @click="activeTab='stats'">阅读统计</button>
   </nav>
-  <ShelfWall v-show="activeTab==='wall'" />
-  <ReadingStats v-show="activeTab==='stats'" />
+  <ShelfWall v-if="activeTab==='wall'" />
+  <ReadingStats v-if="activeTab==='stats'" />
   <div class="footer">数据来自微信读书 · 通过 weread-skills 网关获取</div>
 </div>
 <SettingsModal ref="settingsModalRef" />
