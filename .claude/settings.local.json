@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python \"C:\\\\Users\\\\31257\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"reading cozy warm library\" --domain typography -n 5)",
+      "Bash(python \"C:\\\\Users\\\\31257\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"animation accessibility cursor hover transition\" --domain ux -n 10)"
+    ]
+  }
+}
